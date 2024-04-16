@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Set build type to reduce firmware size
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE MinSizeRel)
@@ -138,6 +140,7 @@ set(MICROPY_SOURCE_PORT
     msc_disk.c
     mbedtls/mbedtls_port.c
     ${CMAKE_BINARY_DIR}/pins_${MICROPY_BOARD}.c
+    led.c
 )
 
 set(MICROPY_SOURCE_QSTR
@@ -161,6 +164,7 @@ set(MICROPY_SOURCE_QSTR
     ${PROJECT_SOURCE_DIR}/rp2_flash.c
     ${PROJECT_SOURCE_DIR}/rp2_pio.c
     ${CMAKE_BINARY_DIR}/pins_${MICROPY_BOARD}.c
+    ${PROJECT_SOURCE_DIR}/led.c
 )
 
 set(PICO_SDK_COMPONENTS
