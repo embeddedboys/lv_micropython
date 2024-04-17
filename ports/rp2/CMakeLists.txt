@@ -141,6 +141,8 @@ set(MICROPY_SOURCE_PORT
     mbedtls/mbedtls_port.c
     ${CMAKE_BINARY_DIR}/pins_${MICROPY_BOARD}.c
     led.c
+    i80.c
+    ili9488.c
 )
 
 set(MICROPY_SOURCE_QSTR
@@ -165,6 +167,7 @@ set(MICROPY_SOURCE_QSTR
     ${PROJECT_SOURCE_DIR}/rp2_pio.c
     ${CMAKE_BINARY_DIR}/pins_${MICROPY_BOARD}.c
     ${PROJECT_SOURCE_DIR}/led.c
+    ${PROJECT_SOURCE_DIR}/ili9488.c
 )
 
 set(PICO_SDK_COMPONENTS
