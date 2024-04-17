@@ -143,6 +143,7 @@ set(MICROPY_SOURCE_PORT
     led.c
     i80.c
     ili9488.c
+    ft6236.c
 )
 
 set(MICROPY_SOURCE_QSTR
@@ -168,6 +169,7 @@ set(MICROPY_SOURCE_QSTR
     ${CMAKE_BINARY_DIR}/pins_${MICROPY_BOARD}.c
     ${PROJECT_SOURCE_DIR}/led.c
     ${PROJECT_SOURCE_DIR}/ili9488.c
+    ${PROJECT_SOURCE_DIR}/ft6236.c
 )
 
 set(PICO_SDK_COMPONENTS
