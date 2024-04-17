@@ -41,7 +41,12 @@
 
 #include "i80.pio.h"
 
-#define pr_debug(...) mp_printf(&mp_plat_print, __VA_ARGS__)
+#define DEBUG 0
+#if DEBUG
+    #define pr_debug(...) mp_printf(&mp_plat_print, __VA_ARGS__)
+#else
+    #define pr_debug(...)
+#endif
 
 #define USE_DMA 1
 #define I80_BUS_CLK_KHZ 50000

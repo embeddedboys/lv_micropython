@@ -36,7 +36,12 @@
 #include "../../lib/lv_bindings/driver/include/common.h"
 
 #define DRV_NAME "ft6236"
-#define pr_debug(...) mp_printf(&mp_plat_print, __VA_ARGS__)
+#define DEBUG 0
+#if DEBUG
+    #define pr_debug(...) mp_printf(&mp_plat_print, __VA_ARGS__)
+#else
+    #define pr_debug(...)
+#endif
 
 #define FT6236_X_RES 480
 #define FT6236_Y_RES 320

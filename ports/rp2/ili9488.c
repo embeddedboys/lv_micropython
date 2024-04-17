@@ -45,8 +45,14 @@
  * ili9488 Command Table
  */
 
+
 #define DRV_NAME "ili9488"
-#define pr_debug(...) mp_printf(&mp_plat_print, __VA_ARGS__)
+#define DEBUG 0
+#if DEBUG
+    #define pr_debug(...) mp_printf(&mp_plat_print, __VA_ARGS__)
+#else
+    #define pr_debug(...)
+#endif
 
 #define ILI9488_X_RES 480
 #define ILI9488_Y_RES 320
