@@ -22,6 +22,7 @@ BUILD ?= build-$(BOARD)
 $(VERBOSE)MAKESILENT = -s
 
 CMAKE_ARGS = -DMICROPY_BOARD=$(BOARD) -DMICROPY_BOARD_DIR=$(abspath $(BOARD_DIR))
+CMAKE_ARGS += -DDISP_BOARD=$(DISP_BOARD)
 
 ifdef USER_C_MODULES
 CMAKE_ARGS += -DUSER_C_MODULES=${USER_C_MODULES}
@@ -42,7 +43,7 @@ endif
 HELP_BUILD_ERROR ?= "See \033[1;31mhttps://github.com/micropython/micropython/wiki/Build-Troubleshooting\033[0m"
 
 all:
-	[ -e $(BUILD)/Makefile ] || cmake -S . -B $(BUILD) -DPICO_BUILD_DOCS=0 ${CMAKE_ARGS}
+	cmake -S . -B $(BUILD) -DPICO_BUILD_DOCS=0 ${CMAKE_ARGS}
 	$(MAKE) $(MAKESILENT) -C $(BUILD) || (echo -e $(HELP_BUILD_ERROR); false)
 
 clean:

@@ -27,11 +27,8 @@
 
 #include "hardware/gpio.h"
 
-extern void foo(void);
-
 void hw_led_init(void)
 {
-    foo();
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 }

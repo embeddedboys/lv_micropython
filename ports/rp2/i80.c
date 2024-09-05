@@ -48,88 +48,135 @@
     #define pr_debug(...)
 #endif
 
-#define USE_DMA 1
-#define I80_BUS_CLK_KHZ 50000
-#define LCD_PIN_RS 20
+#ifndef PIO_USE_DMA
+    #define PIO_USE_DMA 1
+#endif
+struct i80_data {
+    /* Pins for 8080 PIO */
+    uint db_base;   /* The base pin of 8080 data bus */
+    uint db_count;  /* The total count of 8080 data bus from base */
+    uint pin_wr;    /* Pin number of WR signal */
 
-static PIO g_pio = pio0;
-static uint g_sm = 0;
+    /* PIO self things */
+    PIO pio;    /* which pio instance */
+    uint sm;    /* which state machine will be used */
+    uint offset;    /* offset of PIO program */
+    float clk_div;
 
-void foo(void)
+    /* DMA things */
+    uint dma_tx;    /* DMA channel */
+    dma_channel_config dma_chnn_cfg;
+} g_i80;
+
+static void __time_critical_func(i80_set_rs_cs)(bool rs, bool cs)
 {
-    mp_printf(&mp_plat_print, "%s\n", __func__);
+    gpio_put_masked((1u << LCD_PIN_RS) | (1u << LCD_PIN_CS), !!rs << LCD_PIN_RS | !!cs << LCD_PIN_CS);
 }
 
-// void __time_critical_func(i80_set_rs_cs)(bool rs, bool cs)
-// {
-//     gpio_put_masked((1u << LCD_PIN_RS) | (1u << LCD_PIN_CS), !!rs << LCD_PIN_RS | !!cs << LCD_PIN_CS);
-// }
-
-void __time_critical_func(i80_set_rs)(bool rs)
+static void __time_critical_func(i80_set_rs)(bool rs)
 {
-    gpio_put_masked(1u << LCD_PIN_RS, !!rs << LCD_PIN_RS);
+    gpio_put(LCD_PIN_RS, rs);
 }
 
-#if USE_DMA
-/* DMA version */
-static uint dma_tx;
-static dma_channel_config c;
-static inline void __time_critical_func(i80_write_pio16_wr)(PIO pio, uint sm, void *buf, size_t len)
-{
-    dma_channel_configure(dma_tx, &c,
-                          &pio->txf[sm], /* write address */
-                          (uint16_t *)buf, /* read address */
-                          len / 2, /* element count (each element is of size transfer_data_size) */
-                          true /* start right now */
-    );
-
-    // dma_start_channel_mask(1u << dma_tx);
-
-    /* TODO: use another core to wait. */
-    dma_channel_wait_for_finish_blocking(dma_tx);
+#if PIO_USE_DMA
+#define define_i80_write_piox(func, buffer_type) \
+void func(PIO pio, uint sm, void *buf, size_t len) \
+{ \
+    dma_channel_configure(g_i80.dma_tx, &g_i80.dma_chnn_cfg,   \
+                          &pio->txf[sm],    \
+                          (buffer_type *)buf,  \
+                          len / sizeof(buffer_type),  \
+                          true  \
+    );  \
+    dma_channel_wait_for_finish_blocking(g_i80.dma_tx);   \
 }
 #else
-static inline int i80_write_pio16_wr(PIO pio, uint sm, void *buf, size_t len)
-{
-    uint16_t data;
-
-    i80_wait_idle(pio, sm);
-    while (len) {
-        data = *(uint16_t *)buf;
-
-        i80_put(pio, sm, data);
-
-        buf += 2;
-        len -= 2;
-    }
-    i80_wait_idle(pio, sm);
-    return 0;
+#define define_i80_write_piox(func, buffer_type) \
+void func(PIO pio, uint sm, void *buf, size_t len) \
+{ \
+    buffer_type data;   \
+    \
+    i80_wait_idle(pio, sm); \
+    while (len) {   \
+        data = *(buffer_type *)buf; \
+    \
+        i80_put(pio, sm, data); \
+    \
+        buf += sizeof(buffer_type);   \
+        len -= sizeof(buffer_type);   \
+    }   \
+    i80_wait_idle(pio, sm); \
 }
 #endif
 
-void __time_critical_func(i80_write_buf_rs)(void *buf, size_t len, bool rs)
+define_i80_write_piox(i80_write_pio8, uint8_t)
+define_i80_write_piox(i80_write_pio16, uint16_t)
+
+int __time_critical_func(i80_write_buf_rs)(void *buf, size_t len, bool rs)
 {
-    i80_set_rs(rs);
-    i80_write_pio16_wr(g_pio, g_sm, buf, len);
+    i80_wait_idle(g_i80.pio, g_i80.sm);
+    i80_set_rs_cs(rs, 0);
+
+    switch (g_i80.db_count) {
+    case 8:
+        i80_write_pio8(g_i80.pio, g_i80.sm, buf, len);
+        break;
+    case 16:
+        i80_write_pio16(g_i80.pio, g_i80.sm, buf, len);
+        break;
+    default:
+        printf("invaild data bus width\n");
+        break;
+    }
+
+    i80_wait_idle(g_i80.pio, g_i80.sm);
+    i80_set_rs_cs(rs, 0);
+    return 0;
 }
 
 int i80_pio_init(uint8_t db_base, uint8_t db_count, uint8_t pin_wr)
 {
-    pr_debug("i80 PIO initialzing...\n");
+    // printf("i80 PIO initialzing...\n");
 
-#if USE_DMA
-    dma_tx = dma_claim_unused_channel(true);
-    c = dma_channel_get_default_config(dma_tx);
+    g_i80.db_base = db_base;
+    g_i80.db_count = db_count;
+    g_i80.pin_wr = pin_wr;
 
-    channel_config_set_transfer_data_size(&c, DMA_SIZE_16);
-    channel_config_set_dreq(&c, pio_get_dreq(g_pio, g_sm, true));
+    g_i80.pio = pio0;
+    g_i80.sm = 0;
+
+#if PIO_USE_DMA
+    g_i80.dma_tx = dma_claim_unused_channel(true);
+    g_i80.dma_chnn_cfg = dma_channel_get_default_config(g_i80.dma_tx);
+
+    switch (g_i80.db_count) {
+    case 8:
+        channel_config_set_transfer_data_size(&g_i80.dma_chnn_cfg, DMA_SIZE_8);
+        break;
+    case 16:
+        channel_config_set_transfer_data_size(&g_i80.dma_chnn_cfg, DMA_SIZE_16);
+        break;
+    default:
+        // printf("invaild data bus width\n");
+        goto exit_release_chnn;
+        break;
+    }
+
+    channel_config_set_dreq(&g_i80.dma_chnn_cfg, pio_get_dreq(g_i80.pio, g_i80.sm, true));
 #endif
 
-    uint offset = pio_add_program(g_pio, &i80_program);
-    float clk_div = ((clock_get_hz(clk_sys) / 1000.f) / 2.f / I80_BUS_CLK_KHZ);
-    pr_debug("clk_div : %f\n", clk_div);
-    i80_program_init(g_pio, g_sm, offset, db_base, db_count, pin_wr, clk_div);
+    g_i80.offset = pio_add_program(g_i80.pio, &i80_program);
+    g_i80.clk_div = ((clock_get_hz(clk_sys) / 1000.f) / 2.f / I80_BUS_CLK_KHZ);
+
+    i80_program_init(
+        g_i80.pio, g_i80.sm, g_i80.offset,
+        g_i80.db_base, g_i80.db_count,
+        g_i80.pin_wr, g_i80.clk_div
+    );
 
     return 0;
-}
 
+exit_release_chnn:
+    dma_channel_unclaim(g_i80.dma_tx);
+    return -1;
+}
